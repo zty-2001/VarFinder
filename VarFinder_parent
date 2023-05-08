@@ -1,0 +1,136 @@
+#!/usr/bin/perl -w
+print "\nWelcome to use the VarFinder_parent to identify variants in parent line\n";
+print "\nWritten by Liping Zeng!\nVersion 1.0\tLast update: 02/03/2023\n";
+print "Contact: zenglpbio at gmail.com\n";
+
+
+my $PREFIX="/home/zeng/VARFinder";
+my $core = 8;
+my $qual = 0;
+my $cutadapt = 0;
+my $Var = 0;
+
+if($#ARGV==-1){
+	print "type \"-h\" for more information\n\n";
+	exit;
+}
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] eq "-h" || $ARGV[$n] eq "-help"){
+		print "\nNotice: User need to assign the correct Path (PREFIX) of VarFinder_parent\n";
+		print "\nUsage:\n\tSingle end\n\tVarFinder_parent [Option] parent parent_1.fq /Path/Genome.fa\n"; 
+		print "\n\tPaired end\n\tVarFinder_parent [Option] parent parent_1.fq,parent_2.fq /Path/Genome.fa\n\n";
+		print "Options:\n";
+		print "\t--quality-control\t\tGenerate FastQC Report\n";
+		print "\t--cut-adapter\t\tRemove adapter sequences\n";
+		print "\t-thread\t\tThe number of processors used in mapping. (Default: 8)\n";
+		print "\t--no-mapping\tOnly do the mutation analyses from the sorted BAM file\n";	
+		print "\t-h | -help\tPrint this help message.\n";
+		print "\nTo successully run this script, please ensure the correct installation of FastQC, cutadapt, BWA, samtools v1.17, bcftools v1.17 and Perl\n\n\n";
+		exit;
+  }
+}
+
+foreach $n ((0..$#ARGV)){
+        if($ARGV[$n] eq "--quality-control"){
+                print "\nPlease ensure the correct installation of FastQC\n\n";
+                 $qual = 1;
+                splice @ARGV, $n, 1;
+                last;
+        }
+}
+
+foreach $n ((0..$#ARGV)){
+        if($ARGV[$n] eq "--cut-adapter"){
+                print "\nPlease ensure the correct installation of Cutadapt\n\n";
+                 $cutadapt = 1;
+                splice @ARGV, $n, 1;
+                last;
+        }
+}
+
+foreach $n ((0..$#ARGV)){
+	if($ARGV[$n] eq "--no-mapping"){
+		print "\nBAM file must be sorted\n\n";
+		 $Var = 1;
+		splice @ARGV, $n, 1;
+		last;
+	}
+}
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] eq "-thread"){
+    $core = $ARGV[$n+1];
+    splice @ARGV, $n, 2;
+    last;
+  }
+}
+
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] =~ /^-/){
+		print "unrecognized option \"$ARGV[$n]\"!\n";
+		print "type \"-h\" for more information\n";
+		exit;
+	}
+}
+
+if($#ARGV < 2){
+	print "Please provide enough parameters\n";
+	print "type \"-h\" for more information\n";
+	exit;
+}
+
+if($Var ==1){
+        print "Only call variants\n\n";
+	print "Make sure your BAM file has been sorted"; 
+
+	system ("$PREFIX/Program/bcftools-1.17/bcftools mpileup -Ou -f $ARGV[-1] $ARGV[-3]_output/$ARGV[-3].sorted.bam 2>$ARGV[-3]_output/$ARGV[-3].mpileup.err | $PREFIX/Program/bcftools-1.17/bcftools call -mv -Ov -o $ARGV[-3]_output/$ARGV[-3].vcf");
+        print "\nProcessing: Variants has been identified\n";
+exit;
+}
+
+##Map and call variations
+else{  
+	print "\nThis program will help you to map reads to reference genome and then call variants\n\n";
+	system "mkdir $ARGV[-3]_output\n";
+	$file= $ARGV[-2]; #reads file name, e.g. Mutant_1.fq or Mutant1_1.fq,Mutant1_2.fq
+	print "\nSample Name\t$ARGV[-3]\n";
+        print "Reads File\t$file\n";
+      #single end sequencing
+	if($file !~ /,/){
+		if(! -e $file){
+		print "Please provide correct files\n";
+		print "type \"-h\" for more information\n";	
+		exit;
+	}
+##Notice: please provide correct path of the reference genome file
+	print "Processing: Mapping reads to the reference genome\n";
+
+	system ("bwa mem -t $core $ARGV[-1] $file >$ARGV[-3]_output/$ARGV[-3].sam 2>$ARGV[-3]_output/$ARGV[-3].bwa.err\n");
+	print "\nProcessing: Finished mapping\n";
+	}else{  #paired end sequencing
+		@file = split /,/, $file;
+		##check the consistence of file names of paired end sequences
+		if(! -e $file[0] || ! -e $file[1]){
+			print "Please provide correct files\n";
+			print "type \"-h\" for more information\n";	
+			exit;
+		}
+	print "\nProcessing: Mapping reads to the reference genome\n";
+        
+ 	system ("bwa mem -t $core $ARGV[-1] $file[0] $file[1] >$ARGV[-3]_output/$ARGV[-3].sam 2>$ARGV[-3]_output/$ARGV[-3].bwa.err\n");
+	print "\nProcessing: Finished mapping\n";	
+	}
+##convert sam file to bam file and sort it
+	system ("$PREFIX/Program/samtools-1.17/samtools view -bS $ARGV[-3]_output/$ARGV[-3].sam >$ARGV[-3]_output/$ARGV[-3].bam\n");
+	system ("$PREFIX/Program/samtools-1.17/samtools sort $ARGV[-3]_output/$ARGV[-3].bam -o $ARGV[-3]_output/$ARGV[-3].sorted.bam\n");
+	system ("$PREFIX/Program/samtools-1.17/samtools index $ARGV[-3]_output/$ARGV[-3].sorted.bam 2>$ARGV[-3]_output/$ARGV[-3].bamIndex.err\n");
+##Call variations
+	print "\nProcessing: BAM file has been sorted\n";
+	system ("$PREFIX/Program/bcftools-1.17/bcftools mpileup -Ou -f $ARGV[-1] $ARGV[-3]_output/$ARGV[-3].sorted.bam 2>$ARGV[-3]_output/$ARGV[-3].mpileup.err | $PREFIX/Program/bcftools-1.17/bcftools call -mv -Ov -o $ARGV[-3]_output/$ARGV[-3].vcf");
+
+	print "\nProcessing: Variants has been identified\n";
+}
+
+

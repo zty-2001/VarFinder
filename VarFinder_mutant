@@ -1,0 +1,128 @@
+#!/usr/bin/perl -w
+print "\nWelcome to use the VarFinder_mutant to identify variants written by Liping Zeng!\nVersion 1.0\tLast update: 02/03/2023\n";
+print "Contact: zenglpbio at gmail.com\n";
+my $PREFIX="/home/zeng/VARFinder";
+my $core = 8;
+my $Var = 0;
+
+if($#ARGV==-1){
+	print "type \"-h\" for more information\n\n";
+	exit;
+}
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] eq "-h" || $ARGV[$n] eq "-help"){
+		print "\nNotice: User need to assign the correct Path (PREFIX) of VarFinder\n";
+		print "\nUsage:\n\tSingle end\n\tVarFinder_mutant [Option] Mutant Mutant_1.fq /Path/Genome.fa MaxmumDepth MinimumDepth  cutoffMutationRate[0-100]\n"; 
+		print "\n\tPaired end\n\tVarFinder_mutant [Option] [Mutant] [Mutant_1.fq,Mutant_2.fq] /Path/Genome.fa MaxmumDepth MinimumDepth cutoffMutationRate[0-100]\n\n";
+		print "Options:\n";
+		print "\t-thread\t\tThe number of processors used in mapping. (Default: 8)\n";
+		print "\t--no-mapping\tOnly do the mutation analyses from the sorted BAM file\n";	
+
+		print "\t-h | -help\tPrint this help message.\n";
+		print "\nTo successully run this script, please ensure the correct installation of BWA, samtools v1.17, bcftools v1.17 and Perl\n\n\n";
+		exit;
+  }
+}
+
+foreach $n ((0..$#ARGV)){
+	if($ARGV[$n] eq "--no-mapping"){
+		print "\nBAM file must be sorted\n\n";
+		 $Var = 1;
+		splice @ARGV, $n, 1;
+		last;
+	}
+}
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] eq "-thread"){
+    $core = $ARGV[$n+1];
+    splice @ARGV, $n, 2;
+    last;
+  }
+}
+
+
+foreach $n ((0 .. $#ARGV)){
+  if($ARGV[$n] =~ /^-/){
+		print "unrecognized option \"$ARGV[$n]\"!\n";
+		print "type \"-h\" for more information\n";
+		exit;
+	}
+}
+
+if($#ARGV < 2){
+	print "Please provide enough parameters\n";
+	print "type \"-h\" for more information\n";
+	exit;
+}
+
+if($Var ==1){
+        print "Only call variants\n\n";
+	print "Make sure your BAM file has been sorted"; 
+
+	system ("$PREFIX/Program/bcftools-1.17/bcftools mpileup -Ou -f $ARGV[-4] $ARGV[-6]_output/$ARGV[-6].sorted.bam 2>$ARGV[-6]_output/$ARGV[-6].mpileup.err | $PREFIX/Program/bcftools-1.17/bcftools call -mv -Ov -o $ARGV[-6]_output/$ARGV[-6].vcf");
+        print "\nProcessing: Variants has been identified\n";
+
+##Remove variants with sequencing depth bigger than 100 and less than 10. User can adjust the number of the maximum and/or minimum depth 
+        system ("perl $PREFIX/Program/Filter_mutation.depth.pl $ARGV[-6]_output/$ARGV[-6].vcf  $ARGV[-6]_output/$ARGV[-6].-depth.vcf $ARGV[-3] $ARGV[-2]\n");
+        print "\nProcessing: Variants with super high and low depth have been removed\n";
+
+##Remove variants by mutation rate $#ARGV. User can adjust the mutation rate 
+        system ("perl $PREFIX/Program/Filter_mutation.ratio.pl $ARGV[-6]_output/$ARGV[-6].-depth.vcf $ARGV[-6]_output/$ARGV[-6].-depth.$ARGV[-1].vcf $ARGV[-1]\n");
+        print "\nProcessing: Variants have been filtered according to assigned mutation rate\n";
+exit;
+}
+
+##Map and call variations
+else{  
+	print "\nThis program will help you to map reads to reference genome and then call variants\n\n";
+	system "mkdir $ARGV[-6]_output\n";
+	$file= $ARGV[-5]; #reads file name, e.g. Mutant_1.fq or Mutant1_1.fq,Mutant1_2.fq
+	print "\nSample Name\t$ARGV[-6]\n";
+        print "Reads File\t$file\n";
+      #single end sequencing
+	if($file !~ /,/){
+		if(! -e $file){
+		print "Please provide correct files\n";
+		print "type \"-h\" for more information\n";	
+		exit;
+	}
+##Notice: please provide correct path of the reference genome file
+	print "Processing: Mapping reads to the reference genome\n";
+
+	system ("bwa mem -t $core $ARGV[-4] $file >$ARGV[-6]_output/$ARGV[-6].sam 2>$ARGV[-6]_output/$ARGV[-6].bwa.err\n");
+	print "\nProcessing: Finished mapping\n";
+	}else{  #paired end sequencing
+		@file = split /,/, $file;
+		##check the consistence of file names of paired end sequences
+		if(! -e $file[0] || ! -e $file[1]){
+			print "Please provide correct files\n";
+			print "type \"-h\" for more information\n";	
+			exit;
+		}
+	print "\nProcessing: Mapping reads to the reference genome\n";
+        
+ 	system ("bwa mem -t $core $ARGV[-4] $file[0] $file[1] >$ARGV[-6]_output/$ARGV[-6].sam 2>$ARGV[-6]_output/$ARGV[-6].bwa.err\n");
+	print "\nProcessing: Finished mapping\n";	
+	}
+##convert sam file to bam file and sort it
+	system ("$PREFIX/Program/samtools-1.17/samtools view -bS $ARGV[-6]_output/$ARGV[-6].sam >$ARGV[-6]_output/$ARGV[-6].bam\n");
+	system ("$PREFIX/Program/samtools-1.17/samtools sort $ARGV[-6]_output/$ARGV[-6].bam -o $ARGV[-6]_output/$ARGV[-6].sorted.bam\n");
+	system ("$PREFIX/Program/samtools-1.17/samtools index $ARGV[-6]_output/$ARGV[-6].sorted.bam 2>$ARGV[-6]_output/$ARGV[-6].bamIndex.err\n");
+##Call variations
+	print "\nProcessing: BAM file has been sorted\n";
+	system ("$PREFIX/Program/bcftools-1.17/bcftools mpileup -Ou -f $ARGV[-4] $ARGV[-6]_output/$ARGV[-6].sorted.bam 2>$ARGV[-6]_output/$ARGV[-6].mpileup.err | $PREFIX/Program/bcftools-1.17/bcftools call -mv -Ov -o $ARGV[-6]_output/$ARGV[-6].vcf");
+
+	print "\nProcessing: Variants has been identified\n";
+##Remove variants with sequencing depth bigger than 100 and less than 10. User can adjust the number of the maximum and/or minimum depth 
+	system ("perl $PREFIX/Program/DepthFilter.pl $ARGV[-6]_output/$ARGV[-6].vcf  $ARGV[-6]_output/$ARGV[-6].-depth.vcf $ARGV[-3] $ARGV[-2]\n");  
+
+	print "\nProcessing: Variants with super high and low depth have been removed\n";
+
+##Remove variants by mutation rate $#ARGV. User can adjust the mutation rate 
+	system ("perl $PREFIX/Program/MutationRatioFilter.pl $ARGV[-6]_output/$ARGV[-6].-depth.vcf $ARGV[-6]_output/$ARGV[-6].-depth.$ARGV[-1].vcf $ARGV[-1]\n");
+	print "\nProcessing: Variants have been filtered according to assigned mutation rate\n";	
+}
+
+
