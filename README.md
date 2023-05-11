@@ -1,9 +1,8 @@
-# VarFinder
 VarFinder is a versatile toolkit to identify and annotate causal mutations of genetic screens.
 
-#bcftools-1.17 and samtools-1.17 are required to successfully run VarFinder.
+Remind: bcftools-1.17 and samtools-1.17 are required to successfully run VarFinder.
 
-#Identify mutations in the mutant, and exclude noisy mutations with customized mutation ratio, sequence depth:
+1.Identify mutations in the mutant, and exclude noisy mutations with customized mutation ratio, sequence depth:
 
 #Single-end
 $perl VarFinder_mutant [Mutant] [Mutant_1.fq] [PATH/Genome.fas] [MaxmumDepth] [MinimumDepth] [cutoffMutationRate(0-100)]
