@@ -28,34 +28,28 @@ Make sure the following tools are installed and accessible in your `$PATH`:
 
 **Single-end reads:**
 
-```bash
 perl VarFinder_mutant [Mutant] [Mutant_1.fq] [Genome.fas] [MaxDepth] [MinDepth] [MutationRate(0-100)]
 
 **Paired-end reads:**
 
-```bash
 perl VarFinder_mutant [Mutant] [Mutant_1.fq,Mutant_2.fq] [Genome.fas] [MaxDepth] [MinDepth] [MutationRate(0-100)]
 
 ### Step 2. Identify mutations in the parental sample
 
 **Single-end reads:**
 
-```bash
 perl VarFinder_parent [Parent] [Parent_1.fq] [Genome.fas]
 
 **Paired-end reads:**
 
-```bash
 perl VarFinder_parent [Parent] [Parent_1.fq,Parent_2.fq] [Genome.fas]
 
 ### Step 3. Remove parental (background) mutations from mutant results
 
-```bash
 perl bkRemover.pl [Mutant.vcf] [Parent.vcf] [Cleaned.vcf]
 
 ### Step 4. Annotate cleaned variants
 
-```bash
 perl VarAnnotate.pl [Cleaned.vcf] [GFF3_file] [CDS.fasta] [Annotate.csv]
 
 ### 📁 File Overview
